@@ -19,13 +19,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -96,21 +89,6 @@ const defaultData = {
       description: "Applies when 2 selected drinks are priced at 59.",
     },
   ],
-  payments: [
-    { id: crypto.randomUUID(), name: "Cash", type: "cash", active: true },
-    {
-      id: crypto.randomUUID(),
-      name: "GCash",
-      type: "digital",
-      active: true,
-    },
-    {
-      id: crypto.randomUUID(),
-      name: "Maya",
-      type: "digital",
-      active: true,
-    },
-  ],
   orders: [],
 };
 
@@ -123,26 +101,26 @@ function loadData() {
   }
 }
 
-function saveData(data: any) {
+function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-function peso(n: any) {
+function peso(n) {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
   }).format(Number(n || 0));
 }
 
-function flattenCart(cart: any[]) {
-  const items: any[] = [];
+function flattenCart(cart) {
+  const items = [];
   cart.forEach((line) => {
     for (let i = 0; i < line.qty; i += 1) items.push(line.product);
   });
   return items;
 }
 
-function applyPromo(cart: any[], promos: any[]) {
+function applyPromo(cart, promos) {
   const baseSubtotal = cart.reduce(
     (sum, line) => sum + line.product.price * line.qty,
     0
@@ -154,8 +132,7 @@ function applyPromo(cart: any[], promos: any[]) {
     .filter((p) => p.enabled)
     .forEach((promo) => {
       const eligible = flat.filter(
-        (item) =>
-          Number(item.price) === Number(promo.eligiblePrice)
+        (item) => Number(item.price) === Number(promo.eligiblePrice)
       );
       const bundles = Math.floor(
         eligible.length / Number(promo.requiredQty || 2)
@@ -166,8 +143,7 @@ function applyPromo(cart: any[], promos: any[]) {
           bundles *
           Number(promo.requiredQty) *
           Number(promo.eligiblePrice);
-        const discounted =
-          bundles * Number(promo.bundlePrice);
+        const discounted = bundles * Number(promo.bundlePrice);
         const discount = normal - discounted;
         const total = baseSubtotal - discount;
 
@@ -188,8 +164,8 @@ export default function LeanCafeOrderApp() {
   const [db, setDb] = useState(loadData());
   const [activeTab, setActiveTab] = useState("order");
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<any[]>([]);
-  const [paymentId, setPaymentId] = useState("");
+  const [cart, setCart] = useState([]);
+  const [paymentId, setPaymentId] = useState(""); // "cash" or "gcash"
   const [tendered, setTendered] = useState("");
 
   const [newProduct, setNewProduct] = useState({
@@ -197,12 +173,6 @@ export default function LeanCafeOrderApp() {
     price: "",
     stock: "",
     lowStockAt: "5",
-  });
-
-  const [newPayment, setNewPayment] = useState({
-    name: "",
-    type: "cash",
-    active: true,
   });
 
   const [newPromo, setNewPromo] = useState({
@@ -217,14 +187,14 @@ export default function LeanCafeOrderApp() {
     saveData(db);
   }, [db]);
 
-  function updateDb(updater: any) {
-    setDb((prev: any) =>
+  function updateDb(updater) {
+    setDb((prev) =>
       typeof updater === "function" ? updater(prev) : updater
     );
   }
 
   const products = db.products.filter(
-    (p: any) =>
+    (p) =>
       p.active &&
       p.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -239,27 +209,24 @@ export default function LeanCafeOrderApp() {
     0
   );
   const total = promoResult.total;
-  const selectedPayment = db.payments.find(
-    (p: any) => p.id === paymentId
-  );
+
   const change =
-    selectedPayment?.type === "cash"
+    paymentId === "cash"
       ? Math.max(Number(tendered || 0) - Number(total || 0), 0)
       : 0;
 
   const pendingOrders = db.orders.filter(
-    (o: any) => o.status === "pending"
+    (o) => o.status === "pending"
   );
   const completedOrders = db.orders.filter(
-    (o: any) => o.status === "completed"
+    (o) => o.status === "completed"
   );
   const lowStock = db.products.filter(
-    (p: any) =>
-      p.active && Number(p.stock) <= Number(p.lowStockAt)
+    (p) => p.active && Number(p.stock) <= Number(p.lowStockAt)
   );
 
-  function addToCart(product: any) {
-    setCart((prev: any[]) => {
+  function addToCart(product) {
+    setCart((prev) => {
       const found = prev.find(
         (line) => line.product.id === product.id
       );
@@ -279,10 +246,8 @@ export default function LeanCafeOrderApp() {
     });
   }
 
-  function setQty(productId: string, qty: any) {
-    const product = db.products.find(
-      (p: any) => p.id === productId
-    );
+  function setQty(productId, qty) {
+    const product = db.products.find((p) => p.id === productId);
     const safeQty = Math.max(
       0,
       Math.min(Number(qty || 0), Number(product?.stock || 0))
@@ -290,9 +255,7 @@ export default function LeanCafeOrderApp() {
 
     setCart((prev) =>
       safeQty === 0
-        ? prev.filter(
-            (line) => line.product.id !== productId
-          )
+        ? prev.filter((line) => line.product.id !== productId)
         : prev.map((line) =>
             line.product.id === productId
               ? { ...line, qty: safeQty }
@@ -308,19 +271,14 @@ export default function LeanCafeOrderApp() {
   }
 
   function placeOrder() {
-    if (cart.length === 0 || !selectedPayment) return;
+    if (cart.length === 0 || !paymentId) return;
 
-    if (
-      selectedPayment.type === "cash" &&
-      Number(tendered || 0) < Number(total || 0)
-    )
+    if (paymentId === "cash" && Number(tendered || 0) < Number(total))
       return;
 
     const order = {
       id: crypto.randomUUID(),
-      orderNo: `ORD-${Date.now()
-        .toString()
-        .slice(-6)}`,
+      orderNo: `ORD-${Date.now().toString().slice(-6)}`,
       createdAt: new Date().toISOString(),
       status: "pending",
       items: cart.map((line) => ({
@@ -332,34 +290,25 @@ export default function LeanCafeOrderApp() {
       promoName: promoResult.promoName,
       discount: promoResult.discount,
       total,
-      paymentName: selectedPayment.name,
-      tendered:
-        selectedPayment.type === "cash"
-          ? Number(tendered || 0)
-          : null,
-      change:
-        selectedPayment.type === "cash"
-          ? change
-          : null,
+      paymentName: paymentId === "cash" ? "Cash" : "GCash",
+      tendered: paymentId === "cash" ? Number(tendered || 0) : null,
+      change: paymentId === "cash" ? change : null,
     };
 
-    updateDb((prev: any) => ({
+    updateDb((prev) => ({
       ...prev,
-      products: prev.products.map(
-        (product: any) => {
-          const ordered = cart.find(
-            (line) => line.product.id === product.id
-          );
-          return ordered
-            ? {
-                ...product,
-                stock:
-                  Number(product.stock) -
-                  Number(ordered.qty),
-              }
-            : product;
-        }
-      ),
+      products: prev.products.map((product) => {
+        const ordered = cart.find(
+          (line) => line.product.id === product.id
+        );
+        return ordered
+          ? {
+              ...product,
+              stock:
+                Number(product.stock) - Number(ordered.qty),
+            }
+          : product;
+      }),
       orders: [order, ...prev.orders],
     }));
 
@@ -367,10 +316,10 @@ export default function LeanCafeOrderApp() {
     setActiveTab("pending");
   }
 
-  function completeOrder(orderId: string) {
-    updateDb((prev: any) => ({
+  function completeOrder(orderId) {
+    updateDb((prev) => ({
       ...prev,
-      orders: prev.orders.map((o: any) =>
+      orders: prev.orders.map((o) =>
         o.id === orderId
           ? {
               ...o,
@@ -385,7 +334,7 @@ export default function LeanCafeOrderApp() {
   function addProduct() {
     if (!newProduct.name || !newProduct.price) return;
 
-    updateDb((prev: any) => ({
+    updateDb((prev) => ({
       ...prev,
       products: [
         {
@@ -408,26 +357,8 @@ export default function LeanCafeOrderApp() {
     });
   }
 
-  function addPayment() {
-    if (!newPayment.name) return;
-
-    updateDb((prev: any) => ({
-      ...prev,
-      payments: [
-        ...prev.payments,
-        { id: crypto.randomUUID(), ...newPayment },
-      ],
-    }));
-
-    setNewPayment({
-      name: "",
-      type: "cash",
-      active: true,
-    });
-  }
-
   function savePromo() {
-    updateDb((prev: any) => ({
+    updateDb((prev) => ({
       ...prev,
       promos: [
         {
@@ -452,116 +383,78 @@ export default function LeanCafeOrderApp() {
           className="relative z-0 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
         >
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Cafe Order App
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">Cafe Order App</h1>
             <p className="text-sm text-neutral-500">
-              Simple one-tablet order flow for a small
-              cafe.
+              Simple one-tablet order flow for a small cafe.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Badge
-              variant="secondary"
-              className="rounded-full px-3 py-1"
-            >
+            <Badge variant="secondary" className="rounded-full px-3 py-1">
               Pending: {pendingOrders.length}
             </Badge>
-            <Badge
-              variant="secondary"
-              className="rounded-full px-3 py-1"
-            >
+            <Badge variant="secondary" className="rounded-full px-3 py-1">
               Completed: {completedOrders.length}
             </Badge>
-            <Badge
-              variant="outline"
-              className="rounded-full px-3 py-1"
-            >
+            <Badge variant="outline" className="rounded-full px-3 py-1">
               Low Stock: {lowStock.length}
             </Badge>
           </div>
         </motion.div>
 
+        {/* Low Stock Warning */}
         {lowStock.length > 0 && (
           <Card className="rounded-2xl border-amber-200 bg-amber-50 shadow-sm">
             <CardContent className="flex items-center gap-3 p-4 text-sm">
               <AlertTriangle className="h-5 w-5" />
               <div>
-                <span className="font-semibold">
-                  Low stock warning:
-                </span>{" "}
-                {lowStock
-                  .map((p) => `${p.name} (${p.stock})`)
-                  .join(", ")}
+                <span className="font-semibold">Low stock warning:</span>{" "}
+                {lowStock.map((p) => `${p.name} (${p.stock})`).join(", ")}
               </div>
             </CardContent>
           </Card>
         )}
 
-        <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
-          className="space-y-4"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          {/* TABS HEADER */}
           <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-transparent p-0 md:grid-cols-4">
-            <TabsTrigger
-              value="order"
-              className="rounded-2xl border bg-white py-3"
-            >
+            <TabsTrigger value="order" className="rounded-2xl border bg-white py-3">
               Take Order
             </TabsTrigger>
-            <TabsTrigger
-              value="pending"
-              className="rounded-2xl border bg-white py-3"
-            >
+            <TabsTrigger value="pending" className="rounded-2xl border bg-white py-3">
               Pending
             </TabsTrigger>
-            <TabsTrigger
-              value="completed"
-              className="rounded-2xl border bg-white py-3"
-            >
+            <TabsTrigger value="completed" className="rounded-2xl border bg-white py-3">
               Completed
             </TabsTrigger>
-            <TabsTrigger
-              value="settings"
-              className="rounded-2xl border bg-white py-3"
-            >
+            <TabsTrigger value="settings" className="rounded-2xl border bg-white py-3">
               Settings
             </TabsTrigger>
           </TabsList>
 
-          {/* ORDER TAB */}
+          {/* ============ ORDER TAB ============ */}
           <TabsContent value="order" className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+              {/* PRODUCT LIST */}
               <Card className="rounded-2xl shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />{" "}
-                    Choose Drinks
+                    <ShoppingCart className="h-5 w-5" /> Choose Drinks
                   </CardTitle>
-                  <CardDescription>
-                    Tap once to add. Adjust quantity
-                    only when needed.
-                  </CardDescription>
+                  <CardDescription>Tap once to add. Adjust quantity only when needed.</CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
                   <Input
                     placeholder="Search product..."
                     value={search}
-                    onChange={(e) =>
-                      setSearch(e.target.value)
-                    }
+                    onChange={(e) => setSearch(e.target.value)}
                     className="rounded-xl"
                   />
 
                   <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {products.map((product) => {
-                      const inCart = cart.find(
-                        (c) =>
-                          c.product.id === product.id
-                      );
+                      const inCart = cart.find((c) => c.product.id === product.id);
 
                       return (
                         <Button
@@ -572,22 +465,14 @@ export default function LeanCafeOrderApp() {
                           disabled={product.stock <= 0}
                         >
                           <div>
-                            <div className="font-semibold">
-                              {product.name}
-                            </div>
-                            <div className="mt-2 text-sm font-medium">
-                              {peso(product.price)}
-                            </div>
+                            <div className="font-semibold">{product.name}</div>
+                            <div className="mt-2 text-sm font-medium">{peso(product.price)}</div>
                           </div>
 
                           <div className="text-right text-xs text-neutral-500">
-                            <div>
-                              Stock: {product.stock}
-                            </div>
+                            <div>Stock: {product.stock}</div>
                             {inCart ? (
-                              <div className="mt-1 font-semibold text-neutral-900">
-                                x{inCart.qty}
-                              </div>
+                              <div className="mt-1 font-semibold text-neutral-900">x{inCart.qty}</div>
                             ) : null}
                           </div>
                         </Button>
@@ -601,12 +486,11 @@ export default function LeanCafeOrderApp() {
               <Card className="rounded-2xl shadow-sm">
                 <CardHeader>
                   <CardTitle>Current Order</CardTitle>
-                  <CardDescription>
-                    Promo applies automatically.
-                  </CardDescription>
+                  <CardDescription>Promo applies automatically.</CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
+                  {/* ORDER ITEMS */}
                   <ScrollArea className="max-h-[40vh] pr-3 overflow-scroll touch-auto">
                     <div className="space-y-3">
                       {cart.length === 0 ? (
@@ -615,20 +499,12 @@ export default function LeanCafeOrderApp() {
                         </div>
                       ) : (
                         cart.map((line) => (
-                          <div
-                            key={line.product.id}
-                            className="rounded-2xl border p-3"
-                          >
+                          <div key={line.product.id} className="rounded-2xl border p-3">
                             <div className="flex items-center justify-between gap-3">
                               <div>
-                                <div className="font-medium">
-                                  {line.product.name}
-                                </div>
+                                <div className="font-medium">{line.product.name}</div>
                                 <div className="text-sm text-neutral-500">
-                                  {peso(
-                                    line.product.price
-                                  )}{" "}
-                                  each
+                                  {peso(line.product.price)} each
                                 </div>
                               </div>
 
@@ -637,12 +513,7 @@ export default function LeanCafeOrderApp() {
                                   size="sm"
                                   variant="outline"
                                   className="rounded-xl"
-                                  onClick={() =>
-                                    setQty(
-                                      line.product.id,
-                                      line.qty - 1
-                                    )
-                                  }
+                                  onClick={() => setQty(line.product.id, line.qty - 1)}
                                 >
                                   -
                                 </Button>
@@ -650,12 +521,7 @@ export default function LeanCafeOrderApp() {
                                 <Input
                                   type="number"
                                   value={line.qty}
-                                  onChange={(e) =>
-                                    setQty(
-                                      line.product.id,
-                                      e.target.value
-                                    )
-                                  }
+                                  onChange={(e) => setQty(line.product.id, e.target.value)}
                                   className="w-16 rounded-xl text-center"
                                 />
 
@@ -663,12 +529,7 @@ export default function LeanCafeOrderApp() {
                                   size="sm"
                                   variant="outline"
                                   className="rounded-xl"
-                                  onClick={() =>
-                                    setQty(
-                                      line.product.id,
-                                      line.qty + 1
-                                    )
-                                  }
+                                  onClick={() => setQty(line.product.id, line.qty + 1)}
                                 >
                                   +
                                 </Button>
@@ -682,85 +543,85 @@ export default function LeanCafeOrderApp() {
 
                   <Separator />
 
+                  {/* TOTALS */}
                   <div className="space-y-2 rounded-2xl bg-neutral-50 p-4">
                     <div className="flex items-center justify-between text-sm">
                       <span>Subtotal</span>
                       <span>{peso(subtotal)}</span>
                     </div>
+
                     <div className="flex items-center justify-between text-sm">
                       <span>Promo</span>
                       <span>
                         {promoResult.promoName
-                          ? `${promoResult.promoName} (-${peso(
-                              promoResult.discount
-                            )})`
+                          ? `${promoResult.promoName} (-${peso(promoResult.discount)})`
                           : "None"}
                       </span>
                     </div>
+
                     <div className="flex items-center justify-between text-lg font-bold">
                       <span>Total</span>
                       <span>{peso(total)}</span>
                     </div>
                   </div>
 
+                  {/* PAYMENT BUTTONS */}
                   <div className="space-y-2">
                     <Label>Payment</Label>
-                    <Select
-                      value={paymentId}
-                      onValueChange={setPaymentId}
-                    >
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="Select payment" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {db.payments
-                          .filter((p) => p.active)
-                          .map((payment) => (
-                            <SelectItem
-                              key={payment.id}
-                              value={payment.id}
-                            >
-                              {payment.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        className={`rounded-2xl py-3 ${
+                          paymentId === "cash" ? "bg-blue-600 text-white" : ""
+                        }`}
+                        variant={paymentId === "cash" ? "default" : "outline"}
+                        onClick={() => {
+                          setPaymentId("cash");
+                          setTendered("");
+                        }}
+                      >
+                        Cash
+                      </Button>
+
+                      <Button
+                        className={`rounded-2xl py-3 ${
+                          paymentId === "gcash" ? "bg-blue-600 text-white" : ""
+                        }`}
+                        variant={paymentId === "gcash" ? "default" : "outline"}
+                        onClick={() => {
+                          setPaymentId("gcash");
+                          setTendered("");
+                        }}
+                      >
+                        GCash
+                      </Button>
+                    </div>
                   </div>
 
-                  {selectedPayment?.type === "cash" && (
+                  {/* CASH FIELDS */}
+                  {paymentId === "cash" && (
                     <div className="space-y-2">
                       <Label>Tendered Amount</Label>
                       <Input
                         type="number"
                         value={tendered}
-                        onChange={(e) =>
-                          setTendered(e.target.value)
-                        }
+                        onChange={(e) => setTendered(e.target.value)}
                         placeholder="Enter cash received"
                         className="rounded-xl"
                       />
                       <div className="rounded-2xl bg-neutral-50 p-3 text-sm">
-                        Change:{" "}
-                        <span className="font-semibold">
-                          {peso(change)}
-                        </span>
+                        Change: <span className="font-semibold">{peso(change)}</span>
                       </div>
                     </div>
                   )}
 
+                  {/* ACTION BUTTONS */}
                   <div className="flex gap-2">
-                    <Button
-                      className="flex-1 rounded-2xl"
-                      onClick={placeOrder}
-                    >
+                    <Button className="flex-1 rounded-2xl" onClick={placeOrder}>
                       Place Order
                     </Button>
 
-                    <Button
-                      variant="outline"
-                      className="rounded-2xl"
-                      onClick={resetOrder}
-                    >
+                    <Button variant="outline" className="rounded-2xl" onClick={resetOrder}>
                       Reset
                     </Button>
                   </div>
@@ -769,17 +630,15 @@ export default function LeanCafeOrderApp() {
             </div>
           </TabsContent>
 
-          {/* PENDING TAB */}
+          {/* ============ PENDING TAB ============ */}
           <TabsContent value="pending" className="space-y-4">
             <Card className="rounded-2xl shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ClipboardList className="h-5 w-5" /> Pending
-                  Orders
+                  <ClipboardList className="h-5 w-5" /> Pending Orders
                 </CardTitle>
                 <CardDescription>
-                  Kitchen prepares, cashier serves, then tap
-                  complete.
+                  Kitchen prepares, cashier serves, then tap complete.
                 </CardDescription>
               </CardHeader>
 
@@ -789,43 +648,29 @@ export default function LeanCafeOrderApp() {
                     No pending orders.
                   </div>
                 ) : (
-                  pendingOrders.map((order: any) => (
-                    <div
-                      key={order.id}
-                      className="rounded-2xl border p-4"
-                    >
+                  pendingOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <div>
-                          <div className="font-semibold">
-                            {order.orderNo}
-                          </div>
+                          <div className="font-semibold">{order.orderNo}</div>
                           <div className="text-xs text-neutral-500">
-                            {new Date(
-                              order.createdAt
-                            ).toLocaleString()}
+                            {new Date(order.createdAt).toLocaleString()}
                           </div>
                         </div>
-
                         <Badge>Pending</Badge>
                       </div>
 
                       <div className="space-y-1 text-sm">
-                        {order.items.map(
-                          (item: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between"
-                            >
-                              <span>{item.name}</span>
-                              <span>x{item.qty}</span>
-                            </div>
-                          )
-                        )}
+                        {order.items.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between">
+                            <span>{item.name}</span>
+                            <span>x{item.qty}</span>
+                          </div>
+                        ))}
                       </div>
 
                       <div className="mt-3 text-sm text-neutral-600">
-                        Payment: {order.paymentName} • Total:{" "}
-                        {peso(order.total)}
+                        Payment: {order.paymentName} • Total: {peso(order.total)}
                       </div>
 
                       <Button
@@ -841,17 +686,14 @@ export default function LeanCafeOrderApp() {
             </Card>
           </TabsContent>
 
-          {/* COMPLETED TAB */}
+          {/* ============ COMPLETED TAB ============ */}
           <TabsContent value="completed" className="space-y-4">
             <Card className="rounded-2xl shadow-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5" /> Completed
-                  Orders
+                  <CheckCircle2 className="h-5 w-5" /> Completed Orders
                 </CardTitle>
-                <CardDescription>
-                  Recent served orders.
-                </CardDescription>
+                <CardDescription>Recent served orders.</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-3">
@@ -860,34 +702,21 @@ export default function LeanCafeOrderApp() {
                     No completed orders yet.
                   </div>
                 ) : (
-                  completedOrders.map((order: any) => (
-                    <div
-                      key={order.id}
-                      className="rounded-2xl border p-4"
-                    >
+                  completedOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border p-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-semibold">
-                            {order.orderNo}
-                          </div>
+                          <div className="font-semibold">{order.orderNo}</div>
                           <div className="text-xs text-neutral-500">
-                            {new Date(
-                              order.completedAt ||
-                                order.createdAt
-                            ).toLocaleString()}
+                            {new Date(order.completedAt || order.createdAt).toLocaleString()}
                           </div>
                         </div>
-                        <Badge variant="secondary">
-                          Completed
-                        </Badge>
+                        <Badge variant="secondary">Completed</Badge>
                       </div>
 
                       <div className="mt-2 text-sm text-neutral-600">
                         {order.items
-                          .map(
-                            (i: any) =>
-                              `${i.name} x${i.qty}`
-                          )
+                          .map((i) => `${i.name} x${i.qty}`)
                           .join(" • ")}
                       </div>
                     </div>
@@ -897,7 +726,7 @@ export default function LeanCafeOrderApp() {
             </Card>
           </TabsContent>
 
-          {/* SETTINGS TAB */}
+          {/* ============ SETTINGS TAB ============ */}
           <TabsContent value="settings" className="space-y-4">
             <div className="grid gap-4 lg:grid-cols-2">
               {/* PRODUCTS */}
@@ -906,9 +735,7 @@ export default function LeanCafeOrderApp() {
                   <CardTitle className="flex items-center gap-2">
                     <Package className="h-5 w-5" /> Products
                   </CardTitle>
-                  <CardDescription>
-                    Add drinks and track stock.
-                  </CardDescription>
+                  <CardDescription>Add drinks and track stock.</CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-3">
@@ -917,10 +744,7 @@ export default function LeanCafeOrderApp() {
                       placeholder="Product name"
                       value={newProduct.name}
                       onChange={(e) =>
-                        setNewProduct({
-                          ...newProduct,
-                          name: e.target.value,
-                        })
+                        setNewProduct({ ...newProduct, name: e.target.value })
                       }
                       className="rounded-xl"
                     />
@@ -930,10 +754,7 @@ export default function LeanCafeOrderApp() {
                       placeholder="Price"
                       value={newProduct.price}
                       onChange={(e) =>
-                        setNewProduct({
-                          ...newProduct,
-                          price: e.target.value,
-                        })
+                        setNewProduct({ ...newProduct, price: e.target.value })
                       }
                       className="rounded-xl"
                     />
@@ -943,10 +764,7 @@ export default function LeanCafeOrderApp() {
                       placeholder="Stock"
                       value={newProduct.stock}
                       onChange={(e) =>
-                        setNewProduct({
-                          ...newProduct,
-                          stock: e.target.value,
-                        })
+                        setNewProduct({ ...newProduct, stock: e.target.value })
                       }
                       className="rounded-xl"
                     />
@@ -965,35 +783,27 @@ export default function LeanCafeOrderApp() {
                     />
                   </div>
 
-                  <Button
-                    className="w-full rounded-2xl"
-                    onClick={addProduct}
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> Add
-                    Product
+                  <Button className="w-full rounded-2xl" onClick={addProduct}>
+                    <Plus className="mr-2 h-4 w-4" /> Add Product
                   </Button>
 
                   <Separator />
 
                   <div className="space-y-2">
-                    {db.products.map((product: any) => (
+                    {db.products.map((product) => (
                       <div
                         key={product.id}
                         className="flex flex-col gap-3 rounded-2xl border p-4 md:flex-row md:items-center md:justify-between"
                       >
                         <div>
-                          <div className="font-semibold">
-                            {product.name}
-                          </div>
+                          <div className="font-semibold">{product.name}</div>
                           <div className="text-sm text-neutral-500">
-                            {peso(product.price)} • Stock{" "}
-                            {product.stock}
+                            {peso(product.price)} • Stock {product.stock}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {Number(product.stock) <=
-                          Number(product.lowStockAt) ? (
+                          {Number(product.stock) <= Number(product.lowStockAt) ? (
                             <Badge>Low Stock</Badge>
                           ) : null}
 
@@ -1001,25 +811,17 @@ export default function LeanCafeOrderApp() {
                             variant="outline"
                             className="rounded-xl"
                             onClick={() =>
-                              updateDb(
-                                (prev: any) => ({
-                                  ...prev,
-                                  products:
-                                    prev.products.map(
-                                      (p: any) =>
-                                        p.id ===
-                                        product.id
-                                          ? {
-                                              ...p,
-                                              stock:
-                                                Number(
-                                                  p.stock
-                                                ) + 1,
-                                            }
-                                          : p
-                                    ),
-                                })
-                              )
+                              updateDb((prev) => ({
+                                ...prev,
+                                products: prev.products.map((p) =>
+                                  p.id === product.id
+                                    ? {
+                                        ...p,
+                                        stock: Number(p.stock) + 1,
+                                      }
+                                    : p
+                                ),
+                              }))
                             }
                           >
                             +1
@@ -1031,16 +833,13 @@ export default function LeanCafeOrderApp() {
                 </CardContent>
               </Card>
 
-              {/* PROMO & PAYMENT */}
+              {/* PROMO */}
               <Card className="rounded-2xl shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Settings2 className="h-5 w-5" /> Promo &
-                    Payment
+                    <Settings2 className="h-5 w-5" /> Promo
                   </CardTitle>
-                  <CardDescription>
-                    Keep only what you really need.
-                  </CardDescription>
+                  <CardDescription>Automatic discount settings.</CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
@@ -1049,10 +848,7 @@ export default function LeanCafeOrderApp() {
                     <Input
                       value={newPromo.name}
                       onChange={(e) =>
-                        setNewPromo({
-                          ...newPromo,
-                          name: e.target.value,
-                        })
+                        setNewPromo({ ...newPromo, name: e.target.value })
                       }
                       className="rounded-xl"
                     />
@@ -1078,8 +874,7 @@ export default function LeanCafeOrderApp() {
                       onChange={(e) =>
                         setNewPromo({
                           ...newPromo,
-                          bundlePrice:
-                            e.target.value,
+                          bundlePrice: e.target.value,
                         })
                       }
                       className="rounded-xl"
@@ -1091,8 +886,7 @@ export default function LeanCafeOrderApp() {
                       onChange={(e) =>
                         setNewPromo({
                           ...newPromo,
-                          eligiblePrice:
-                            e.target.value,
+                          eligiblePrice: e.target.value,
                         })
                       }
                       className="rounded-xl"
@@ -1104,111 +898,14 @@ export default function LeanCafeOrderApp() {
                     <Switch
                       checked={newPromo.enabled}
                       onCheckedChange={(v) =>
-                        setNewPromo({
-                          ...newPromo,
-                          enabled: v,
-                        })
+                        setNewPromo({ ...newPromo, enabled: v })
                       }
                     />
                   </div>
 
-                  <Button
-                    className="w-full rounded-2xl"
-                    onClick={savePromo}
-                  >
+                  <Button className="w-full rounded-2xl" onClick={savePromo}>
                     Save Promo
                   </Button>
-
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <Label>Add Payment Method</Label>
-
-                    <div className="grid grid-cols-[1fr_140px] gap-2">
-                      <Input
-                        placeholder="Payment name"
-                        value={newPayment.name}
-                        onChange={(e) =>
-                          setNewPayment({
-                            ...newPayment,
-                            name: e.target.value,
-                          })
-                        }
-                        className="rounded-xl"
-                      />
-
-                      <Select
-                        value={newPayment.type}
-                        onValueChange={(v) =>
-                          setNewPayment({
-                            ...newPayment,
-                            type: v,
-                          })
-                        }
-                      >
-                        <SelectTrigger className="rounded-xl">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="cash">
-                            Cash
-                          </SelectItem>
-                          <SelectItem value="digital">
-                            Digital
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      className="rounded-2xl"
-                      onClick={addPayment}
-                    >
-                      Add Payment
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    {db.payments.map((payment: any) => (
-                      <div
-                        key={payment.id}
-                        className="flex items-center justify-between rounded-2xl border p-3"
-                      >
-                        <div>
-                          <div className="font-medium">
-                            {payment.name}
-                          </div>
-                          <div className="text-xs text-neutral-500">
-                            {payment.type}
-                          </div>
-                        </div>
-
-                        <Switch
-                          checked={payment.active}
-                          onCheckedChange={(value) =>
-                            updateDb(
-                              (prev: any) => ({
-                                ...prev,
-                                payments:
-                                  prev.payments.map(
-                                    (p: any) =>
-                                      p.id ===
-                                      payment.id
-                                        ? {
-                                            ...p,
-                                            active:
-                                              value,
-                                          }
-                                        : p
-                                  ),
-                              })
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
                 </CardContent>
               </Card>
             </div>
