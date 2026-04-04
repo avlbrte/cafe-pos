@@ -255,7 +255,11 @@ export default function LeanCafeOrderApp() {
  return (
  <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
  <div className="mx-auto max-w-7xl space-y-6">
- <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+<motion.div
+  initial={{ opacity: 0, y: 10 }}
+  animate={{ opacity: 1, y: 0 }}
+  className="relative z-0 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+>
  <div>
  <h1 className="text-3xl font-bold tracking-tight">Cafe Order App</h1>
  <p className="text-sm text-neutral-500">Simple one-tablet order flow for a small cafe.</p>
@@ -348,7 +352,7 @@ export default function LeanCafeOrderApp() {
  ))
  )}
  </div>
- </ScrollArea>
+<ScrollArea className="max-h-[40vh] pr-3 overflow-scroll touch-auto">
 
  <Separator />
 
