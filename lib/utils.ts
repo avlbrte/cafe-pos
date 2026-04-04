@@ -1,2 +1,3 @@
-export function cn(...classes: (string | boolean | undefined | null)[]) {  return classes.filter(Boolean).join(" ")}
-0 commit commentsComments0
+export function cn(...inputs: (string | boolean | undefined | null)[]) {
+  return inputs.filter(Boolean).join(" ");
+}
