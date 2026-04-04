@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -30,12 +28,11 @@ import {
   CheckCircle2,
   Settings2,
 } from "lucide-react";
-
 import { motion } from "framer-motion";
 
-/* -----------------------------
-   SIMPLE SINGLE‑TABLET CAFE POS 
-------------------------------*/
+/* ----------------------------------------
+   SIMPLE SINGLE-TABLET CAFE POS SYSTEM 
+----------------------------------------- */
 
 const STORAGE_KEY = "lean_cafe_order_app_v1";
 
@@ -82,7 +79,10 @@ function saveData(data) {
 }
 
 function peso(n) {
-  return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n || 0));
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+  }).format(Number(n || 0));
 }
 
 function flattenCart(cart) {
@@ -99,24 +99,26 @@ function applyPromo(cart, promos) {
 
   const flat = flattenCart(cart);
 
-  promos.filter((p) => p.enabled).forEach((promo) => {
-    const eligible = flat.filter((item) => Number(item.price) === Number(promo.eligiblePrice));
-    const bundles = Math.floor(eligible.length / Number(promo.requiredQty));
+  promos
+    .filter((promo) => promo.enabled)
+    .forEach((promo) => {
+      const eligible = flat.filter((item) => Number(item.price) === Number(promo.eligiblePrice));
+      const bundles = Math.floor(eligible.length / Number(promo.requiredQty || 2));
 
-    if (bundles > 0) {
-      const normal = bundles * promo.requiredQty * promo.eligiblePrice;
-      const discounted = bundles * promo.bundlePrice;
-      const discount = normal - discounted;
+      if (bundles > 0) {
+        const normal = bundles * promo.requiredQty * promo.eligiblePrice;
+        const discounted = bundles * promo.bundlePrice;
+        const discount = normal - discounted;
 
-      if (subtotal - discount < best.total) {
-        best = {
-          promoName: promo.name,
-          discount,
-          total: subtotal - discount,
-        };
+        if (subtotal - discount < best.total) {
+          best = {
+            promoName: promo.name,
+            discount,
+            total: subtotal - discount,
+          };
+        }
       }
-    }
-  });
+    });
 
   return best;
 }
@@ -129,8 +131,19 @@ export default function LeanCafeOrderApp() {
   const [paymentId, setPaymentId] = useState("");
   const [tendered, setTendered] = useState("");
 
-  const [newProduct, setNewProduct] = useState({ name: "", price: "", stock: "", lowStockAt: "5" });
-  const [newPayment, setNewPayment] = useState({ name: "", type: "cash", active: true });
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    price: "",
+    stock: "",
+    lowStockAt: "5",
+  });
+
+  const [newPayment, setNewPayment] = useState({
+    name: "",
+    type: "cash",
+    active: true,
+  });
+
   const [newPromo, setNewPromo] = useState({
     name: "2 for 99",
     requiredQty: "2",
@@ -143,20 +156,23 @@ export default function LeanCafeOrderApp() {
     saveData(db);
   }, [db]);
 
-  function updateDb(fn) {
-    setDb((prev) => (typeof fn === "function" ? fn(prev) : fn));
+  function updateDb(updater) {
+    setDb((prev) => (typeof updater === "function" ? updater(prev) : updater));
   }
 
   const products = db.products.filter(
     (p) => p.active && p.name.toLowerCase().includes(search.toLowerCase())
   );
+
   const promoResult = useMemo(() => applyPromo(cart, db.promos), [cart, db.promos]);
-  const subtotal = cart.reduce((sum, line) => sum + line.product.price * line.qty, 0);
+
+  const subtotal = cart.reduce((s, l) => s + l.product.price * l.qty, 0);
   const total = promoResult.total;
   const selectedPayment = db.payments.find((p) => p.id === paymentId);
+
   const change =
     selectedPayment?.type === "cash"
-      ? Math.max(Number(tendered) - Number(total), 0)
+      ? Math.max(Number(tendered || 0) - Number(total), 0)
       : 0;
 
   const pendingOrders = db.orders.filter((o) => o.status === "pending");
@@ -181,22 +197,28 @@ export default function LeanCafeOrderApp() {
     });
   }
 
-  function setQty(productId, qty) {
-    const product = db.products.find((p) => p.id === productId);
-    const safeQty = Math.max(0, Math.min(Number(qty), Number(product?.stock)));
+  function setQty(id, qty) {
+    const product = db.products.find((p) => p.id === id);
+    const safe = Math.max(0, Math.min(Number(qty || 0), Number(product?.stock || 0)));
 
     setCart((prev) =>
-      safeQty === 0
-        ? prev.filter((line) => line.product.id !== productId)
+      safe === 0
+        ? prev.filter((line) => line.product.id !== id)
         : prev.map((line) =>
-            line.product.id === productId ? { ...line, qty: safeQty } : line
+            line.product.id === id ? { ...line, qty: safe } : line
           )
     );
   }
 
+  function resetOrder() {
+    setCart([]);
+    setPaymentId("");
+    setTendered("");
+  }
+
   function placeOrder() {
     if (!cart.length || !selectedPayment) return;
-    if (selectedPayment.type === "cash" && Number(tendered) < total) return;
+    if (selectedPayment.type === "cash" && Number(tendered || 0) < Number(total)) return;
 
     const order = {
       id: crypto.randomUUID(),
@@ -213,30 +235,30 @@ export default function LeanCafeOrderApp() {
       discount: promoResult.discount,
       total,
       paymentName: selectedPayment.name,
-      tendered: selectedPayment.type === "cash" ? Number(tendered) : null,
+      tendered: selectedPayment.type === "cash" ? Number(tendered || 0) : null,
       change: selectedPayment.type === "cash" ? change : null,
     };
 
     updateDb((prev) => ({
       ...prev,
       products: prev.products.map((p) => {
-        const found = cart.find((line) => line.product.id === p.id);
+        const found = cart.find((l) => l.product.id === p.id);
         return found ? { ...p, stock: p.stock - found.qty } : p;
       }),
       orders: [order, ...prev.orders],
     }));
 
-    setCart([]);
-    setPaymentId("");
-    setTendered("");
+    resetOrder();
     setActiveTab("pending");
   }
 
-  function completeOrder(id) {
+  function completeOrder(orderId) {
     updateDb((prev) => ({
       ...prev,
       orders: prev.orders.map((o) =>
-        o.id === id ? { ...o, status: "completed", completedAt: new Date().toISOString() } : o
+        o.id === orderId
+          ? { ...o, status: "completed", completedAt: new Date().toISOString() }
+          : o
       ),
     }));
   }
@@ -251,8 +273,8 @@ export default function LeanCafeOrderApp() {
           id: crypto.randomUUID(),
           name: newProduct.name,
           price: Number(newProduct.price),
-          stock: Number(newProduct.stock ?? 0),
-          lowStockAt: Number(newProduct.lowStockAt ?? 5),
+          stock: Number(newProduct.stock || 0),
+          lowStockAt: Number(newProduct.lowStockAt || 5),
           active: true,
         },
         ...prev.products,
@@ -264,10 +286,12 @@ export default function LeanCafeOrderApp() {
 
   function addPayment() {
     if (!newPayment.name) return;
+
     updateDb((prev) => ({
       ...prev,
       payments: [...prev.payments, { id: crypto.randomUUID(), ...newPayment }],
     }));
+
     setNewPayment({ name: "", type: "cash", active: true });
   }
 
@@ -291,18 +315,14 @@ export default function LeanCafeOrderApp() {
     <div className="min-h-screen bg-neutral-50 p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
 
-        {/* ✅ FIXED HEADER (missing </p> bug solved) */}
+        {/* ✅ FIXED HEADER — NOW WITH CLOSING TAG */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
         >
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
-              Cafe Order App
-            </h1>
-
-            {/* ✅ This <p> was missing a closing tag — fixed */}
+            <h1 className="text-3xl font-bold tracking-tight">Cafe Order App</h1>
             <p className="text-sm text-neutral-500">
               Simple one-tablet order flow for a small cafe.
             </p>
@@ -312,19 +332,21 @@ export default function LeanCafeOrderApp() {
             <Badge variant="secondary" className="rounded-full px-3 py-1">
               Pending: {pendingOrders.length}
             </Badge>
+
             <Badge variant="secondary" className="rounded-full px-3 py-1">
               Completed: {completedOrders.length}
             </Badge>
+
             <Badge variant="outline" className="rounded-full px-3 py-1">
               Low Stock: {lowStock.length}
             </Badge>
           </div>
-        </motion.div>
+        </motion_div>
 
-        {/* Low Stock Warning */}
+        {/* ✅ LOW STOCK WARNING */}
         {lowStock.length > 0 && (
           <Card className="rounded-2xl border-amber-200 bg-amber-50 shadow-sm">
-            <CardContent className="flex items-center gap-3 p-4 text-sm">
+            <CardContent className="flex items-center gap-3 p-4">
               <AlertTriangle className="h-5 w-5" />
               <div>
                 <span className="font-semibold">Low stock warning:</span>{" "}
@@ -334,9 +356,9 @@ export default function LeanCafeOrderApp() {
           </Card>
         )}
 
-        {/* TABS */}
+        {/* ✅ TABS */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl bg-transparent p-0 md:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-2 rounded-2xl p-0 bg-transparent md:grid-cols-4">
             <TabsTrigger value="order" className="rounded-2xl border bg-white py-3">
               Take Order
             </TabsTrigger>
@@ -351,19 +373,20 @@ export default function LeanCafeOrderApp() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ORDER TAB */}
+          {/* ✅ ORDER TAB */}
           <TabsContent value="order" className="space-y-4">
+
+            {/* GRID */}
             <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
 
-              {/* LEFT – PRODUCTS */}
+              {/* LEFT — PRODUCTS */}
               <Card className="rounded-2xl shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" /> Choose Drinks
+                    <ShoppingCart className="h-5 w-5" />
+                    Choose Drinks
                   </CardTitle>
-                  <CardDescription>
-                    Tap once to add. Adjust quantity only when needed.
-                  </CardDescription>
+                  <CardDescription>Tap once to add.</CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
@@ -375,19 +398,519 @@ export default function LeanCafeOrderApp() {
                   />
 
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {products.map((product) => {
-                      const inCart = cart.find((c) => c.product.id === product.id);
+                    {products.map((p) => {
+                      const found = cart.find((c) => c.product.id === p.id);
 
                       return (
                         <Button
-                          key={product.id}
+                          key={p.id}
                           variant="outline"
-                          className="h-auto justify-between rounded-2xl p-4 text-left"
-                          onClick={() => addToCart(product)}
-                          disabled={product.stock <= 0}
+                          className="h-auto rounded-2xl p-4 flex justify-between"
+                          onClick={() => addToCart(p)}
+                          disabled={p.stock <= 0}
                         >
                           <div>
-                            <div className="font-semibold">{product.name}</div>
-                            <div className="mt-2 text-sm font-medium">{peso(product.price)}</div>
+                            <div className="font-semibold">{p.name}</div>
+                            <div className="mt-2 text-sm font-medium">{peso(p.price)}</div>
                           </div>
 
+                          <div className="text-right text-xs text-neutral-500">
+                            <div>Stock: {p.stock}</div>
+                            {found && (
+                              <div className="mt-1 font-semibold text-neutral-900">x{found.qty}</div>
+                            )}
+                          </div>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* RIGHT — CURRENT ORDER */}
+              <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                  <CardTitle>Current Order</CardTitle>
+                  <CardDescription>Promo applies automatically.</CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  <ScrollArea className="h-[260px] pr-3">
+                    <div className="space-y-3">
+                      {cart.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-neutral-500">
+                          No items yet.
+                        </div>
+                      ) : (
+                        cart.map((line) => (
+                          <div key={line.product.id} className="rounded-2xl border p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-medium">{line.product.name}</div>
+                                <div className="text-sm text-neutral-500">
+                                  {peso(line.product.price)} each
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-xl"
+                                  onClick={() => setQty(line.product.id, line.qty - 1)}
+                                >
+                                  -
+                                </Button>
+
+                                <Input
+                                  type="number"
+                                  value={line.qty}
+                                  onChange={(e) => setQty(line.product.id, e.target.value)}
+                                  className="w-16 rounded-xl text-center"
+                                />
+
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="rounded-xl"
+                                  onClick={() => setQty(line.product.id, line.qty + 1)}
+                                >
+                                  +
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  <Separator />
+
+                  {/* TOTALS */}
+                  <div className="rounded-2xl bg-neutral-50 p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Subtotal</span>
+                      <span>{peso(subtotal)}</span>
+                    </div>
+
+                    <div className="flex justify-between text-sm">
+                      <span>Promo</span>
+                      <span>
+                        {promoResult.promoName
+                          ? `${promoResult.promoName} (-${peso(promoResult.discount)})`
+                          : "None"}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total</span>
+                      <span>{peso(total)}</span>
+                    </div>
+                  </div>
+
+                  {/* ✅ FIXED PAYMENT SELECT */}
+                  <div className="space-y-2">
+                    <Label>Payment</Label>
+
+                    <Select value={paymentId} onValueChange={setPaymentId}>
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Select payment" />
+                      </SelectTrigger>
+
+                      <SelectContent
+                        modal={false}
+                        position="popper"
+                        sideOffset={8}
+                        className="z-[9999]"
+                      >
+                        {db.payments
+                          .filter((p) => p.active)
+                          .map((payment) => (
+                            <SelectItem key={payment.id} value={payment.id}>
+                              {payment.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* TENDERED (ONLY FOR CASH) */}
+                  {selectedPayment?.type === "cash" && (
+                    <div className="space-y-2">
+                      <Label>Tendered Amount</Label>
+                      <Input
+                        type="number"
+                        value={tendered}
+                        onChange={(e) => setTendered(e.target.value)}
+                        placeholder="Enter cash received"
+                        className="rounded-xl"
+                      />
+                      <div className="rounded-2xl bg-neutral-50 p-3 text-sm">
+                        Change: <span className="font-semibold">{peso(change)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ACTION BUTTONS */}
+                  <div className="flex gap-2">
+                    <Button className="flex-1 rounded-2xl" onClick={placeOrder}>
+                      Place Order
+                    </Button>
+                    <Button variant="outline" className="rounded-2xl" onClick={resetOrder}>
+                      Reset
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ✅ PENDING TAB */}
+          <TabsContent value="pending" className="space-y-4">
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5" />
+                  Pending Orders
+                </CardTitle>
+                <CardDescription>Kitchen prepares, cashier serves.</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {pendingOrders.length === 0 ? (
+                  <div className="border rounded-2xl border-dashed p-6 text-center text-sm text-neutral-500">
+                    No pending orders.
+                  </div>
+                ) : (
+                  pendingOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border p-4">
+                      <div className="flex justify-between mb-3">
+                        <div>
+                          <div className="font-semibold">{order.orderNo}</div>
+                          <div className="text-xs text-neutral-500">
+                            {new Date(order.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <Badge>Pending</Badge>
+                      </div>
+
+                      <div className="space-y-1 text-sm">
+                        {order.items.map((i, idx) => (
+                          <div key={idx} className="flex justify-between">
+                            <span>{i.name}</span>
+                            <span>x{i.qty}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 text-sm text-neutral-600">
+                        Payment: {order.paymentName} • Total: {peso(order.total)}
+                      </div>
+
+                      <Button
+                        className="mt-4 w-full rounded-2xl"
+                        onClick={() => completeOrder(order.id)}
+                      >
+                        Mark Complete
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ✅ COMPLETED TAB */}
+          <TabsContent value="completed" className="space-y-4">
+            <Card className="rounded-2xl shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Completed Orders
+                </CardTitle>
+                <CardDescription>Recently served orders.</CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3">
+                {completedOrders.length === 0 ? (
+                  <div className="border rounded-2xl border-dashed p-6 text-center text-sm text-neutral-500">
+                    No completed orders yet.
+                  </div>
+                ) : (
+                  completedOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border p-4">
+                      <div className="flex justify-between">
+                        <div>
+                          <div className="font-semibold">{order.orderNo}</div>
+                          <div className="text-xs text-neutral-500">
+                            {new Date(order.completedAt || order.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+
+                        <Badge variant="secondary">Completed</Badge>
+                      </div>
+
+                      <div className="mt-2 text-sm text-neutral-600">
+                        {order.items
+                          .map((i) => `${i.name} x${i.qty}`)
+                          .join(" • ")}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ✅ SETTINGS TAB */}
+          <TabsContent value="settings" className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-2">
+
+              {/* PRODUCTS */}
+              <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Products
+                  </CardTitle>
+                  <CardDescription>Manage items & stock.</CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-3">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <Input
+                      placeholder="Product name"
+                      value={newProduct.name}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, name: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Price"
+                      value={newProduct.price}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, price: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Stock"
+                      value={newProduct.stock}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, stock: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Low Stock At"
+                      value={newProduct.lowStockAt}
+                      onChange={(e) =>
+                        setNewProduct({ ...newProduct, lowStockAt: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+
+                  <Button className="w-full rounded-2xl" onClick={addProduct}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Product
+                  </Button>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    {db.products.map((product) => (
+                      <div
+                        key={product.id}
+                        className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-2xl border p-4"
+                      >
+                        <div>
+                          <div className="font-semibold">{product.name}</div>
+                          <div className="text-sm text-neutral-500">
+                            {peso(product.price)} • Stock {product.stock}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {Number(product.stock) <= Number(product.lowStockAt) && (
+                            <Badge>Low Stock</Badge>
+                          )}
+
+                          <Button
+                            variant="outline"
+                            className="rounded-xl"
+                            onClick={() =>
+                              updateDb((prev) => ({
+                                ...prev,
+                                products: prev.products.map((p) =>
+                                  p.id === product.id
+                                    ? { ...p, stock: p.stock + 1 }
+                                    : p
+                                ),
+                              }))
+                            }
+                          >
+                            +1
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* PROMO & PAYMENT */}
+              <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings2 className="h-5 w-5" />
+                    Promo & Payment
+                  </CardTitle>
+                  <CardDescription>Manage discounts and payment modes.</CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+
+                  {/* PROMO */}
+                  <div className="space-y-2">
+                    <Label>Promo Name</Label>
+                    <Input
+                      value={newPromo.name}
+                      onChange={(e) =>
+                        setNewPromo({ ...newPromo, name: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Qty"
+                      value={newPromo.requiredQty}
+                      onChange={(e) =>
+                        setNewPromo({ ...newPromo, requiredQty: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Bundle"
+                      value={newPromo.bundlePrice}
+                      onChange={(e) =>
+                        setNewPromo({ ...newPromo, bundlePrice: e.target.value })
+                      }
+                      className="rounded-xl"
+                    />
+                    <Input
+                      type="number"
+                      placeholder="Eligible"
+                      value={newPromo.eligiblePrice}
+                      onChange={(e) =>
+                        setNewPromo({
+                          ...newPromo,
+                          eligiblePrice: e.target.value,
+                        })
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+
+                  <div className="flex justify-between items-center rounded-2xl border p-3">
+                    <Label>Promo Enabled</Label>
+                    <Switch
+                      checked={newPromo.enabled}
+                      onCheckedChange={(v) =>
+                        setNewPromo({ ...newPromo, enabled: v })
+                      }
+                    />
+                  </div>
+
+                  <Button className="w-full rounded-2xl" onClick={savePromo}>
+                    Save Promo
+                  </Button>
+
+                  <Separator />
+
+                  {/* ADD PAYMENT */}
+                  <div className="space-y-2">
+                    <Label>Add Payment Method</Label>
+
+                    <div className="grid grid-cols-[1fr_140px] gap-2">
+                      <Input
+                        placeholder="Payment name"
+                        value={newPayment.name}
+                        onChange={(e) =>
+                          setNewPayment({ ...newPayment, name: e.target.value })
+                        }
+                        className="rounded-xl"
+                      />
+
+                      <Select
+                        value={newPayment.type}
+                        onValueChange={(v) =>
+                          setNewPayment({ ...newPayment, type: v })
+                        }
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+
+                        <SelectContent
+                          modal={false}
+                          position="popper"
+                          sideOffset={8}
+                          className="z-[9999]"
+                        >
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="digital">Digital</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button variant="outline" className="rounded-2xl" onClick={addPayment}>
+                      Add Payment
+                    </Button>
+                  </div>
+
+                  {/* PAYMENT LIST */}
+                  <div className="space-y-2">
+                    {db.payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex justify-between rounded-2xl border p-3"
+                      >
+                        <div>
+                          <div className="font-medium">{payment.name}</div>
+                          <div className="text-xs text-neutral-500">{payment.type}</div>
+                        </div>
+
+                        <Switch
+                          checked={payment.active}
+                          onCheckedChange={(v) =>
+                            updateDb((prev) => ({
+                              ...prev,
+                              payments: prev.payments.map((p) =>
+                                p.id === payment.id ? { ...p, active: v } : p
+                              ),
+                            }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
