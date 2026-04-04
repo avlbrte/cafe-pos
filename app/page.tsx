@@ -295,17 +295,17 @@ export default function LeanCafeOrderApp() {
  </CardHeader>
  <CardContent className="space-y-4">
  <Input placeholder="Search product..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-xl" />
- <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+  <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
  {products.map((product) => {
  const inCart = cart.find((c) => c.product.id === product.id);
  return (
- <Button
- key={product.id}
- variant="outline"
- className="h-auto justify-between rounded-2xl p-4 text-left"
- onClick={() => addToCart(product)}
- disabled={product.stock <= 0}
- >
+<Button
+  key={product.id}
+  variant="outline"
+  className="h-auto justify-between rounded-2xl p-4 text-left cursor-pointer"
+  onClick={() => addToCart(product)}
+  disabled={product.stock <= 0}
+/>
  <div>
  <div className="font-semibold">{product.name}</div>
  <div className="mt-2 text-sm font-medium">{peso(product.price)}</div>
@@ -327,7 +327,6 @@ export default function LeanCafeOrderApp() {
  <CardDescription>Promo applies automatically.</CardDescription>
  </CardHeader>
  <CardContent className="space-y-4">
- <ScrollArea className="h-[260px] pr-3">
  <div className="space-y-3">
  {cart.length === 0 ? (
  <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-neutral-500">No items yet.</div>
