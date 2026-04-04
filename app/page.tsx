@@ -192,6 +192,24 @@ export default function LeanCafeOrderApp() {
       typeof updater === "function" ? updater(prev) : updater
     );
   }
+  
+// === SALES REPORT FILTER STATES ===
+const [startDate, setStartDate] = useState("");
+const [endDate, setEndDate] = useState("");
+const [reportMode, setReportMode] = useState("daily"); // daily, weekly, monthly
+
+// Convert order timestamp to YYYY-MM-DD
+function toDateKey(dateStr) {
+  return new Date(dateStr).toISOString().split("T")[0];
+}
+
+// Check date within range
+function isWithinRange(dateKey) {
+  if (!startDate && !endDate) return true;
+  if (startDate && dateKey < startDate) return false;
+  if (endDate && dateKey > endDate) return false;
+  return true;
+}
 
   const products = db.products.filter(
     (p) =>
@@ -430,6 +448,10 @@ export default function LeanCafeOrderApp() {
             <TabsTrigger value="settings" className="rounded-2xl border bg-white py-3">
               Settings
             </TabsTrigger>
+            <TabsTrigger value="sales" className="rounded-2xl border bg-white py-3">
+              Sales Report
+            </TabsTrigger>
+
           </TabsList>
 
           {/* ============ ORDER TAB ============ */}
@@ -832,6 +854,167 @@ export default function LeanCafeOrderApp() {
                   </div>
                 </CardContent>
               </Card>
+
+              
+{/* ============ SALES REPORT TAB ============ */}
+<TabsContent value="sales" className="space-y-4">
+  <Card className="rounded-2xl shadow-sm">
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2">📊 Sales Report</CardTitle>
+      <CardDescription>Date range filters + daily/weekly/monthly summary.</CardDescription>
+    </CardHeader>
+
+    <CardContent className="space-y-6">
+
+      {/* FILTERS */}
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <Label>Start Date</Label>
+          <Input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="rounded-xl"
+          />
+        </div>
+
+        <div>
+          <Label>End Date</Label>
+          <Input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="rounded-xl"
+          />
+        </div>
+
+        <div>
+          <Label>Report Type</Label>
+          <select
+            value={reportMode}
+            onChange={(e) => setReportMode(e.target.value)}
+            className="w-full rounded-xl border p-2"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* ===== REPORT LOGIC ===== */}
+      {(() => {
+        const completed = db.orders.filter((o) => o.status === "completed");
+
+        if (completed.length === 0) {
+          return (
+            <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-neutral-500">
+              No sales yet.
+            </div>
+          );
+        }
+
+        const groups = {};
+
+        completed.forEach((order) => {
+          const dateKey = toDateKey(order.completedAt || order.createdAt);
+          if (!isWithinRange(dateKey)) return;
+
+          const d = new Date(order.completedAt || order.createdAt);
+          let key = "";
+
+          if (reportMode === "daily") {
+            key = dateKey;
+          }
+
+          if (reportMode === "weekly") {
+            const first = new Date(d);
+            first.setDate(d.getDate() - d.getDay());
+            const last = new Date(first);
+            last.setDate(first.getDate() + 6);
+            key = `${first.toISOString().split("T")[0]} to ${last
+              .toISOString()
+              .split("T")[0]}`;
+          }
+
+          if (reportMode === "monthly") {
+            key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+              2,
+              "0"
+            )}`;
+          }
+
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(order);
+        });
+
+        if (Object.keys(groups).length === 0) {
+          return (
+            <div className="rounded-2xl border border-dashed p-6 text-center text-sm text-neutral-500">
+              No sales in selected range.
+            </div>
+          );
+        }
+
+        return Object.keys(groups).map((rangeKey) => {
+          const orders = groups[rangeKey];
+
+          const totalSales = orders.reduce((s, o) => s + o.total, 0);
+          const payments = {};
+          const items = {};
+
+          orders.forEach((o) => {
+            // payment method summary
+            if (!payments[o.paymentName]) payments[o.paymentName] = 0;
+            payments[o.paymentName] += o.total;
+
+            // items summary
+            o.items.forEach((it) => {
+              if (!items[it.name]) items[it.name] = { qty: 0, sales: 0 };
+              items[it.name].qty += it.qty;
+              items[it.name].sales += it.qty * it.price;
+            });
+          });
+
+          return (
+            <div key={rangeKey} className="rounded-2xl border p-4 space-y-4">
+              <h2 className="font-bold text-lg">{rangeKey}</h2>
+
+              <div className="text-xl font-bold">Total Sales: {peso(totalSales)}</div>
+
+              {/* Payment Breakdown */}
+              <div>
+                <h3 className="font-semibold mb-1">By Payment Method</h3>
+                <ul className="space-y-1 text-sm">
+                  {Object.entries(payments).map(([method, amt]) => (
+                    <li key={method}>
+                      {method}: <strong>{peso(amt)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Item Breakdown */}
+              <div>
+                <h3 className="font-semibold mb-1">Items Sold</h3>
+                <ul className="space-y-1 text-sm">
+                  {Object.entries(items).map(([name, v]) => (
+                    <li key={name}>
+                      {name}: {v.qty} pcs — <strong>{peso(v.sales)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          );
+        });
+      })()}
+    </CardContent>
+  </Card>
+</TabsContent>
+
 
               {/* PROMO */}
               <Card className="rounded-2xl shadow-sm">
